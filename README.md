@@ -35,9 +35,9 @@ Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot pos
    - Who has access: **Anyone**
 6. Deploy, then copy the web app URL into `.env` as `SHEETS_WEBHOOK_URL`. Put the same secret in `SHEETS_WEBHOOK_SECRET`.
 
-“Anyone” is required so the bot can POST without a Google login. The secret is what keeps strangers from writing to the sheet. If you change the script later, **Deploy** → **Manage deployments** → edit → **New version**.
+“Anyone” is required so the bot can POST without a Google login. The secret is what keeps strangers from writing to the sheet. If you change the script later, **Deploy** → **Manage deployments** → edit → **New version**. After a 405, restart the bot as well: Node must POST through Google's redirects (opening `/exec` in a browser is a GET).
 
-The weekly message title is **Bad QB picks for week X**. Week 1 starts Tuesday **2026-09-08** (through Monday 9/14); week 2 starts Tuesday 9/15, and so on. Picks are logged with **/pick**: type in each QB field to search the list (Discord does not support searchable dropdowns inside a modal). Edit `src/qbs.js` to change the names. The embed lists sheet rows from the current Tuesday–Monday week and refreshes after each pick, on bot start, and when the day changes. Timezone is `DISPLAY_TIMEZONE` in `.env` (default `America/Chicago`). Re-run `/post-button` after upgrading so the bot can track that message.
+The weekly message title is **Bad QB picks for week X**. Week 1 starts Tuesday **2026-09-08** (through Monday 9/14); week 2 starts Tuesday 9/15, and so on. Picks are logged with **/pick**: type in each QB field to search the list (Discord does not support searchable dropdowns inside a modal). Edit `src/qbs.js` to change the names. The channel embed does **not** list anyone's picks. Timezone is `DISPLAY_TIMEZONE` in `.env` (default `America/Chicago`). Re-run `/post-button` after upgrading so the bot can track that message.
 
 ### 3. Run
 

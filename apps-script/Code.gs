@@ -1,3 +1,7 @@
+function doGet() {
+  return json_({ ok: true, message: "Webhook is up. Use POST." });
+}
+
 function doPost(e) {
   const secret = PropertiesService.getScriptProperties().getProperty("WEBHOOK_SECRET");
   let data;

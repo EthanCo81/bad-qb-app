@@ -12,20 +12,21 @@ async function postToSheet(payload) {
   const webhookUrl = required("SHEETS_WEBHOOK_URL");
   const secret = required("SHEETS_WEBHOOK_SECRET");
   const body = JSON.stringify({ secret, ...payload });
-  const request = {
+  let response = await fetch(webhookUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body,
     redirect: "manual",
-  };
+  });
 
-  let response = await fetch(webhookUrl, request);
-  if (response.status >= 300 && response.status < 400) {
+  // Apps Script /exec 302s to googleusercontent; that URL only accepts GET
+  // (Google still runs doPost with the original body).
+  for (let hop = 0; hop < 5 && response.status >= 300 && response.status < 400; hop += 1) {
     const location = response.headers.get("location");
     if (!location) {
       throw new Error(`Sheet webhook redirected without a Location header (${response.status})`);
     }
-    response = await fetch(location, { ...request, redirect: "follow" });
+    response = await fetch(location, { method: "GET", redirect: "manual" });
   }
 
   const text = await response.text();

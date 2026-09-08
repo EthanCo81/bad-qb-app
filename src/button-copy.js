@@ -108,40 +108,15 @@ export function cappedPlayersForUser(rows, identity, { ignoreWeek } = {}) {
   return capped;
 }
 
-export function buildButtonPayload(rows) {
+export function buildButtonPayload() {
   const week = weekNumber();
   const start = weekStartKey(week);
   const end = addDays(start, 6);
   const title = `Bad QB picks for week ${week}`;
-
-  const weekRows = rowsForWeek(rows);
-
-  const lines = weekRows.map((row) => {
-    const pair = [row.name1, row.name2].filter(Boolean).join(" & ") || "(missing names)";
-    const by = row.username ? ` — logged by ${row.username}` : "";
-    return `• ${pair}${by}`;
-  });
-
-  const maxLines = 20;
-  const shown = lines.slice(0, maxLines);
-  const extra = lines.length - shown.length;
-
-  let sheetBlock;
-  if (shown.length === 0) {
-    sheetBlock = "No picks on the sheet for this week yet.";
-  } else {
-    sheetBlock = shown.join("\n");
-    if (extra > 0) {
-      sheetBlock += `\n…and ${extra} more this week`;
-    }
-  }
-
   const description = [
     `${formatShortIso(start)} – ${formatShortIso(end)} (weeks start Tuesday)`,
     "",
-    sheetBlock,
-    "",
-    "Use **/pick** and type to search two QBs.",
+    "Use **/pick** and type to search two QBs. Picks are not shown in this channel.",
   ].join("\n");
 
   return { title, description, label: title.slice(0, 80) };

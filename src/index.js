@@ -4,6 +4,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   Client,
+  DiscordAPIError,
   EmbedBuilder,
   Events,
   GatewayIntentBits,
@@ -13,7 +14,7 @@ import {
 import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, userPicksForWeek, weekNumber } from "./button-copy.js";
 import { slashCommands } from "./commands.js";
 import { maybeNudgeMissingPicks } from "./nudge.js";
-import { loadPostedMessage, savePostedMessage } from "./posted-message.js";
+import { clearPostedMessage, loadPostedMessage, savePostedMessage } from "./posted-message.js";
 import { isKnownQb, suggestQbs } from "./qbs.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
 import { buildScoreUpdates, currentSleeperSeason } from "./sleeper-scores.js";
@@ -55,8 +56,8 @@ function pickError(message) {
 }
 
 async function buttonMessageOptions() {
-  const rows = await loadSheetRows();
-  const { title, description, label } = buildButtonPayload(rows);
+  await loadSheetRows();
+  const { title, description, label } = buildButtonPayload();
   lastRenderedDate = dateKey();
   const pickMention = pickCommandId ? `</pick:${pickCommandId}>` : "**/pick**";
   return {
@@ -75,12 +76,25 @@ async function refreshPostedButton(discordClient) {
   if (!posted?.channelId || !posted?.messageId) {
     return;
   }
-  const channel = await discordClient.channels.fetch(posted.channelId);
-  if (!channel?.isTextBased()) {
-    return;
+  try {
+    const channel = await discordClient.channels.fetch(posted.channelId);
+    if (!channel?.isTextBased()) {
+      return;
+    }
+    const message = await channel.messages.fetch(posted.messageId);
+    await message.edit(await buttonMessageOptions());
+  } catch (error) {
+    const lost =
+      error instanceof DiscordAPIError && [50001, 50013, 10003, 10008].includes(error.code);
+    if (lost) {
+      console.warn(
+        "Lost access to the posted weekly message. Run /post-button in #bad-qb after giving the bot View Channel, Read Message History, and Send Messages.",
+      );
+      await clearPostedMessage();
+      return;
+    }
+    throw error;
   }
-  const message = await channel.messages.fetch(posted.messageId);
-  await message.edit(await buttonMessageOptions());
 }
 
 async function savePick({ username, userId, name1, name2 }) {
