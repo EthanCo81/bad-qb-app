@@ -1,8 +1,5 @@
 import "dotenv/config";
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   Client,
   DiscordAPIError,
   EmbedBuilder,
@@ -11,22 +8,13 @@ import {
   REST,
   Routes,
 } from "discord.js";
-import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, userPicksForWeek, weekNumber } from "./button-copy.js";
+import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, weekNumber } from "./button-copy.js";
 import { slashCommands } from "./commands.js";
 import { maybeNudgeMissingPicks } from "./nudge.js";
-import {
-  SELECT_ID_PREFIX,
-  eligibleQbs,
-  parsePickControlId,
-  pendingPicks,
-  pickSelectPayload,
-} from "./pick-select.js";
 import { clearPostedMessage, loadPostedMessage, savePostedMessage } from "./posted-message.js";
 import { canonicalQb, suggestQbs } from "./qbs.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
 import { buildScoreUpdates, currentSleeperSeason } from "./sleeper-scores.js";
-
-const BUTTON_ID = "bad-qb-open-form";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -42,62 +30,22 @@ let lastRenderedDate = "";
 let pickCommandId = "";
 let sheetRows = [];
 
-function formButtonRow(label) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(BUTTON_ID)
-      .setLabel(label)
-      .setStyle(ButtonStyle.Primary),
-  );
-}
-
-function excludeForUser(interaction, extraNames = []) {
-  const identity = {
-    userId: interaction.user.id,
-    username: interaction.user.username,
-  };
-  const exclude = cappedPlayersForUser(sheetRows, identity, { ignoreWeek: weekNumber() });
-  for (const name of extraNames) {
-    if (name) exclude.add(String(name).toLowerCase());
-  }
-  return exclude;
-}
-
-function pickMenuFor(interaction) {
-  const existing = userPicksForWeek(sheetRows, {
-    userId: interaction.user.id,
-    username: interaction.user.username,
-  });
-  const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "" };
-  const names = eligibleQbs(excludeForUser(interaction));
-  return pickSelectPayload({
-    names,
-    existing,
-    qb1: pending.qb1,
-    qb2: pending.qb2,
-  });
-}
-
 async function completePick(interaction, name1, name2) {
-  if (interaction.isRepliable() && (interaction.deferred || interaction.replied)) {
-    await interaction.deferUpdate();
-  } else {
-    await interaction.deferReply({ ephemeral: true });
-  }
+  await interaction.deferReply({ ephemeral: true });
   const saved = await savePick({
     username: interaction.user.username,
     userId: interaction.user.id,
     name1,
     name2,
   });
-  pendingPicks.delete(interaction.user.id);
   try {
-    await refreshPostedButton(interaction.client);
+    await refreshPostedMessage(interaction.client);
   } catch (error) {
-    console.error("Saved the row but failed to refresh the button message", error);
+    console.error("Saved the row but failed to refresh the weekly message", error);
   }
-  const text = `Saved **${saved.name1}** and **${saved.name2}** to the sheet (logged as \`${interaction.user.username}\`).`;
-  await interaction.editReply({ content: text, components: [] });
+  await interaction.editReply(
+    `Saved **${saved.name1}** and **${saved.name2}** to the sheet (logged as \`${interaction.user.username}\`).`,
+  );
 }
 
 async function loadSheetRows() {
@@ -111,9 +59,9 @@ function pickError(message) {
   return error;
 }
 
-async function buttonMessageOptions() {
+async function weeklyMessageOptions() {
   await loadSheetRows();
-  const { title, description, label } = buildButtonPayload();
+  const { title, description } = buildButtonPayload();
   lastRenderedDate = dateKey();
   const pickMention = pickCommandId ? `</pick:${pickCommandId}>` : "**/pick**";
   return {
@@ -123,11 +71,11 @@ async function buttonMessageOptions() {
         .setDescription(description.replace("**/pick**", pickMention))
         .setColor(0x5865f2),
     ],
-    components: [formButtonRow(label)],
+    components: [],
   };
 }
 
-async function refreshPostedButton(discordClient) {
+async function refreshPostedMessage(discordClient) {
   const posted = await loadPostedMessage();
   if (!posted?.channelId || !posted?.messageId) {
     return;
@@ -138,13 +86,13 @@ async function refreshPostedButton(discordClient) {
       return;
     }
     const message = await channel.messages.fetch(posted.messageId);
-    await message.edit(await buttonMessageOptions());
+    await message.edit(await weeklyMessageOptions());
   } catch (error) {
     const lost =
       error instanceof DiscordAPIError && [50001, 50013, 10003, 10008].includes(error.code);
     if (lost) {
       console.warn(
-        "Lost access to the posted weekly message. Run /post-button in #bad-qb after giving the bot View Channel, Read Message History, and Send Messages.",
+        "Lost access to the posted weekly message. Run /post-message in #bad-qb after giving the bot View Channel, Read Message History, and Send Messages.",
       );
       await clearPostedMessage();
       return;
@@ -262,9 +210,9 @@ client.once(Events.ClientReady, async (readyClient) => {
     console.error("Failed to load picks from the sheet", error);
   }
   try {
-    await refreshPostedButton(readyClient);
+    await refreshPostedMessage(readyClient);
   } catch (error) {
-    console.error("Failed to refresh posted button", error);
+    console.error("Failed to refresh posted weekly message", error);
   }
   try {
     await scoreFinishedWeeks();
@@ -280,8 +228,8 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   setInterval(() => {
     if (dateKey() !== lastRenderedDate) {
-      refreshPostedButton(readyClient).catch((error) => {
-        console.error("Failed to refresh button for a new date", error);
+      refreshPostedMessage(readyClient).catch((error) => {
+        console.error("Failed to refresh weekly message for a new date", error);
       });
     }
     scoreFinishedWeeks().catch((error) => {
@@ -313,9 +261,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.isChatInputCommand() && interaction.commandName === "post-button") {
+    if (interaction.isChatInputCommand() && interaction.commandName === "post-message") {
       await interaction.deferReply();
-      const options = await buttonMessageOptions();
+      const options = await weeklyMessageOptions();
       const message = await interaction.editReply(options);
       await savePostedMessage({ channelId: message.channelId, messageId: message.id });
       return;
@@ -327,28 +275,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         interaction.options.getString("qb1", true).trim(),
         interaction.options.getString("qb2", true).trim(),
       );
-      return;
-    }
-
-    if (interaction.isButton() && interaction.customId === BUTTON_ID) {
-      pendingPicks.set(interaction.user.id, { qb1: "", qb2: "" });
-      await interaction.reply(pickMenuFor(interaction));
-      return;
-    }
-
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${SELECT_ID_PREFIX}:`)) {
-      const parsed = parsePickControlId(interaction.customId);
-      if (!parsed) return;
-      const chosen = interaction.values[0];
-      const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "" };
-      if (parsed.slot === 1) pending.qb1 = chosen;
-      if (parsed.slot === 2) pending.qb2 = chosen;
-      pendingPicks.set(interaction.user.id, pending);
-      if (pending.qb1 && pending.qb2) {
-        await completePick(interaction, pending.qb1, pending.qb2);
-        return;
-      }
-      await interaction.update(pickMenuFor(interaction));
     }
   } catch (error) {
     console.error(error);

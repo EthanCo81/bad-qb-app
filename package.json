@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Discord button workflow that logs two names and the clicker to Google Sheets",
+  "description": "Discord /pick workflow that logs two QB names and the submitter to Google Sheets",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
