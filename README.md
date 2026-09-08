@@ -1,6 +1,6 @@
 # bad-qb-app
 
-Discord button → modal (two names) → Google Sheet. The row also stores the Discord username that opened the form.
+Discord **/pick** command → two searchable QBs → Google Sheet. The row also stores the Discord username that submitted.
 
 No Google Cloud project or service account. The bot POSTs to a small **Apps Script** attached to the spreadsheet (runs as your Google account).
 
@@ -37,7 +37,7 @@ Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot pos
 
 “Anyone” is required so the bot can POST without a Google login. The secret is what keeps strangers from writing to the sheet. If you change the script later, **Deploy** → **Manage deployments** → edit → **New version**. After a 405, restart the bot as well: Node must POST through Google's redirects (opening `/exec` in a browser is a GET).
 
-The weekly message title is **Bad QB picks for week X**. Week 1 starts Tuesday **2026-09-08** (through Monday 9/14); week 2 starts Tuesday 9/15, and so on. Picks are logged with **/pick**: type in each QB field to search the list (Discord does not support searchable dropdowns inside a modal). Edit `src/qbs.js` to change the names. The channel embed does **not** list anyone's picks. Timezone is `DISPLAY_TIMEZONE` in `.env` (default `America/Chicago`). Re-run `/post-button` after upgrading so the bot can track that message.
+The weekly message title is **Bad QB picks for week X**. Week 1 starts Tuesday **2026-09-08** (through Monday 9/14); week 2 starts Tuesday 9/15, and so on. Picks are logged with **/pick**: type in each QB field to search the list. Edit `src/qbs.js` to change the names. The channel embed does **not** list anyone's picks. Timezone is `DISPLAY_TIMEZONE` in `.env` (default `America/Chicago`). Re-run `/post-message` after upgrading so the bot can track that message.
 
 ### 3. Run
 
@@ -48,6 +48,6 @@ npm install
 npm start
 ```
 
-`/post-button` and `/pick` register when the bot starts. Use `DISCORD_GUILD_ID` so they appear immediately on that server.
+`/post-message` and `/pick` register when the bot starts. Use `DISCORD_GUILD_ID` so they appear immediately on that server.
 
-In Discord, run `/post-button` in the channel where you want the weekly message. Log names with `/pick` and type to search each QB.
+In Discord, run `/post-message` in the channel where you want the weekly message. Log names with `/pick` and type to search each QB.

@@ -3,7 +3,7 @@ import { SlashCommandBuilder } from "discord.js";
 export function slashCommands() {
   return [
     new SlashCommandBuilder()
-      .setName("post-button")
+      .setName("post-message")
       .setDescription("Post the weekly Bad QB picks message in this channel"),
     new SlashCommandBuilder()
       .setName("pick")
