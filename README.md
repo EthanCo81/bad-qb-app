@@ -48,6 +48,14 @@ npm install
 npm start
 ```
 
+Or run the bot in Docker (reads `.env`, keeps weekly-message state in a named volume):
+
+```bash
+docker compose up -d --build
+```
+
+Logs: `docker compose logs -f`. Stop: `docker compose down`. Volume `bot-data` persists `data/` across recreates.
+
 `/post-message` and `/pick` register when the bot starts. Use `DISCORD_GUILD_ID` so they appear immediately on that server.
 
 In Discord, run `/post-message` in the channel where you want the weekly message. Log names with `/pick` and type to search each QB.
