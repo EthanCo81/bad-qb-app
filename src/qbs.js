@@ -115,5 +115,10 @@ export function suggestQbs(query, exclude = new Set()) {
 }
 
 export function isKnownQb(name) {
-  return QBS.some((qb) => qb.toLowerCase() === String(name).trim().toLowerCase());
+  return canonicalQb(name) != null;
+}
+
+export function canonicalQb(name) {
+  const needle = String(name).trim().toLowerCase();
+  return QBS.find((qb) => qb.toLowerCase() === needle) ?? null;
 }

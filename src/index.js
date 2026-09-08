@@ -8,18 +8,24 @@ import {
   EmbedBuilder,
   Events,
   GatewayIntentBits,
+  ModalBuilder,
   REST,
   Routes,
+  TextInputBuilder,
+  TextInputStyle,
 } from "discord.js";
 import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, userPicksForWeek, weekNumber } from "./button-copy.js";
 import { slashCommands } from "./commands.js";
 import { maybeNudgeMissingPicks } from "./nudge.js";
 import { clearPostedMessage, loadPostedMessage, savePostedMessage } from "./posted-message.js";
-import { isKnownQb, suggestQbs } from "./qbs.js";
+import { canonicalQb, suggestQbs } from "./qbs.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
 import { buildScoreUpdates, currentSleeperSeason } from "./sleeper-scores.js";
 
 const BUTTON_ID = "bad-qb-open-form";
+const PICK_MODAL_ID = "bad-qb-pick-modal";
+const QB1_INPUT = "qb1";
+const QB2_INPUT = "qb2";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -41,6 +47,56 @@ function formButtonRow(label) {
       .setCustomId(BUTTON_ID)
       .setLabel(label)
       .setStyle(ButtonStyle.Primary),
+  );
+}
+
+function pickModal(existing) {
+  const firstPlaceholder = existing
+    ? `Currently ${existing.name1}`
+    : "Type a QB name from the list";
+  const secondPlaceholder = existing
+    ? `Currently ${existing.name2}`
+    : "Type a different QB name";
+  return new ModalBuilder()
+    .setCustomId(PICK_MODAL_ID)
+    .setTitle(existing ? "Replace this week's picks" : "Pick two QBs")
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId(QB1_INPUT)
+          .setLabel("First QB")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(80)
+          .setPlaceholder(firstPlaceholder.slice(0, 100)),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId(QB2_INPUT)
+          .setLabel("Second QB")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(80)
+          .setPlaceholder(secondPlaceholder.slice(0, 100)),
+      ),
+    );
+}
+
+async function completePick(interaction, name1, name2) {
+  await interaction.deferReply({ ephemeral: true });
+  const saved = await savePick({
+    username: interaction.user.username,
+    userId: interaction.user.id,
+    name1,
+    name2,
+  });
+  try {
+    await refreshPostedButton(interaction.client);
+  } catch (error) {
+    console.error("Saved the row but failed to refresh the button message", error);
+  }
+  await interaction.editReply(
+    `Saved **${saved.name1}** and **${saved.name2}** to the sheet (logged as \`${interaction.user.username}\`).`,
   );
 }
 
@@ -98,15 +154,26 @@ async function refreshPostedButton(discordClient) {
 }
 
 async function savePick({ username, userId, name1, name2 }) {
-  if (!isKnownQb(name1) || !isKnownQb(name2)) {
-    throw pickError("Pick a QB from the search list for both fields.");
+  const resolved1 = canonicalQb(name1);
+  const resolved2 = canonicalQb(name2);
+  if (!resolved1 || !resolved2) {
+    const unknown = !resolved1 ? name1 : name2;
+    const hints = suggestQbs(unknown)
+      .map((choice) => choice.name)
+      .filter((name) => name.toLowerCase() !== unknown.toLowerCase())
+      .slice(0, 5);
+    throw pickError(
+      hints.length
+        ? `"${unknown}" is not on the QB list. Close matches: ${hints.join(", ")}.`
+        : "Pick a QB from the list for both fields.",
+    );
   }
-  if (name1.toLowerCase() === name2.toLowerCase()) {
+  if (resolved1.toLowerCase() === resolved2.toLowerCase()) {
     throw pickError("Pick two different QBs.");
   }
   const identity = { userId, username };
   const capped = cappedPlayersForUser(sheetRows, identity, { ignoreWeek: weekNumber() });
-  for (const name of [name1, name2]) {
+  for (const name of [resolved1, resolved2]) {
     if (capped.has(name.toLowerCase())) {
       throw pickError(
         `You've already picked ${name} in 2 different weeks, so they can't be picked again.`,
@@ -117,13 +184,14 @@ async function savePick({ username, userId, name1, name2 }) {
   await upsertWeekPicks({
     username,
     userId,
-    name1,
-    name2,
+    name1: resolved1,
+    name2: resolved2,
     week,
     weekStart: start,
     weekEnd: end,
   });
   await loadSheetRows();
+  return { name1: resolved1, name2: resolved2 };
 }
 
 async function registerCommands() {
@@ -254,22 +322,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.isChatInputCommand() && interaction.commandName === "pick") {
-      const name1 = interaction.options.getString("qb1", true).trim();
-      const name2 = interaction.options.getString("qb2", true).trim();
-      await interaction.deferReply({ ephemeral: true });
-      await savePick({
-        username: interaction.user.username,
-        userId: interaction.user.id,
-        name1,
-        name2,
-      });
-      try {
-        await refreshPostedButton(interaction.client);
-      } catch (error) {
-        console.error("Saved the row but failed to refresh the button message", error);
-      }
-      await interaction.editReply(
-        `Saved **${name1}** and **${name2}** to the sheet (logged as \`${interaction.user.username}\`).`,
+      await completePick(
+        interaction,
+        interaction.options.getString("qb1", true).trim(),
+        interaction.options.getString("qb2", true).trim(),
       );
       return;
     }
@@ -278,18 +334,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try {
         await loadSheetRows();
       } catch (error) {
-        console.error("Failed to load picks before showing override status", error);
+        console.error("Failed to load picks before showing the pick form", error);
       }
-      const pickMention = pickCommandId ? `</pick:${pickCommandId}>` : "**/pick**";
       const existing = userPicksForWeek(sheetRows, {
         userId: interaction.user.id,
         username: interaction.user.username,
       });
-      const hint = `Use ${pickMention} to search two QBs from the list.`;
-      const content = existing
-        ? `You have already submitted **${existing.name1}** and **${existing.name2}**. By submitting new picks, those will be overridden.\n\n${hint}`
-        : hint;
-      await interaction.reply({ content, ephemeral: true });
+      await interaction.showModal(pickModal(existing));
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === PICK_MODAL_ID) {
+      await completePick(
+        interaction,
+        interaction.fields.getTextInputValue(QB1_INPUT).trim(),
+        interaction.fields.getTextInputValue(QB2_INPUT).trim(),
+      );
     }
   } catch (error) {
     console.error(error);

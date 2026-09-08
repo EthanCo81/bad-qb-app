@@ -116,7 +116,7 @@ export function buildButtonPayload() {
   const description = [
     `${formatShortIso(start)} – ${formatShortIso(end)} (weeks start Tuesday)`,
     "",
-    "Use **/pick** and type to search two QBs. Picks are not shown in this channel.",
+    "Click the button or use **/pick** to search two QBs. Picks are not shown in this channel.",
   ].join("\n");
 
   return { title, description, label: title.slice(0, 80) };
