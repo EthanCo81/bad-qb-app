@@ -6,7 +6,9 @@ No Google Cloud project or service account. The bot POSTs to a small **Apps Scri
 
 Sheet columns written: `timestamp`, `discord_username`, `discord_user_id`, `name1`, `name2`, `week`, `score_1`, `score_2`.
 
-On each pick, `week` is the Tuesday-start week number. `score_1` / `score_2` stay blank until the **Tuesday after that week**. Then the bot fills them with that QB's fantasy points using [League of Villains](https://sleeper.com/leagues/1322259662862581760) scoring (`SLEEPER_LEAGUE_ID`) and Sleeper's public stats API. The bot retries every minute until stats exist (so it still works if you start it mid-Tuesday).
+On each pick, `week` is the Tuesday-start week number (1, 2, 3, …). `score_1` / `score_2` stay blank until the **Tuesday after that week**. Then the bot fills them with that QB's fantasy points using [League of Villains](https://sleeper.com/leagues/1322259662862581760) scoring (`SLEEPER_LEAGUE_ID`) and Sleeper's public stats API. The bot retries every minute until stats exist (so it still works if you start it mid-Tuesday).
+
+After scores land, Apps Script writes a readable tab named **Week 1**, **Week 2**, and so on. Each tab lists username, both picks, both scores, that week's total, and a **season total** (all weeks combined). Older week tabs are refreshed so season totals stay current.
 
 ## Setup
 

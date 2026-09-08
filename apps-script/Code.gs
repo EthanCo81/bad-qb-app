@@ -29,6 +29,7 @@ function doPost(e) {
 
   if (data.action === "setScores") {
     setScores_(sheet, data.updates || []);
+    rebuildSummaries_(sheet);
     return json_({ ok: true });
   }
 
@@ -114,6 +115,126 @@ function setScores_(sheet, updates) {
 
 function formatUserIdColumn_(sheet, rowNumber) {
   sheet.getRange(rowNumber, 3).setNumberFormat("@");
+}
+
+function asNumber_(value) {
+  if (value === "" || value == null) return null;
+  var n = Number(value);
+  return isNaN(n) ? null : n;
+}
+
+function parseDataRows_(sheet) {
+  var values = sheet.getDataRange().getValues();
+  var rows = [];
+  for (var i = 0; i < values.length; i++) {
+    if (i === 0 && String(values[i][0]).toLowerCase() === "timestamp") continue;
+    var empty = true;
+    for (var c = 0; c < values[i].length; c++) {
+      if (String(values[i][c]).trim() !== "") {
+        empty = false;
+        break;
+      }
+    }
+    if (empty) continue;
+    rows.push({
+      username: String(values[i][1] || ""),
+      userId: String(values[i][2] || ""),
+      name1: String(values[i][3] || ""),
+      name2: String(values[i][4] || ""),
+      week: Number(values[i][5]),
+      score1: asNumber_(values[i][6]),
+      score2: asNumber_(values[i][7]),
+    });
+  }
+  return rows;
+}
+
+function rebuildSummaries_(dataSheet) {
+  var rows = parseDataRows_(dataSheet);
+  var ss = dataSheet.getParent();
+  var seasonTotals = {};
+  var weeks = {};
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    if (!row.userId) continue;
+    if (row.score1 != null) seasonTotals[row.userId] = (seasonTotals[row.userId] || 0) + row.score1;
+    if (row.score2 != null) seasonTotals[row.userId] = (seasonTotals[row.userId] || 0) + row.score2;
+    if (!row.week || isNaN(row.week)) continue;
+    if (row.score1 == null && row.score2 == null) continue;
+    if (!weeks[row.week]) weeks[row.week] = [];
+    weeks[row.week].push(row);
+  }
+
+  for (var weekKey in weeks) {
+    writeWeekSheet_(ss, Number(weekKey), weeks[weekKey], seasonTotals);
+  }
+}
+
+function writeWeekSheet_(ss, week, weekRows, seasonTotals) {
+  var name = "Week " + week;
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+  }
+  sheet.clear();
+
+  var byUser = {};
+  for (var i = 0; i < weekRows.length; i++) {
+    byUser[weekRows[i].userId] = weekRows[i];
+  }
+
+  var table = [];
+  for (var userId in byUser) {
+    var row = byUser[userId];
+    var score1 = row.score1 == null ? "" : row.score1;
+    var score2 = row.score2 == null ? "" : row.score2;
+    var weekTotal = (row.score1 || 0) + (row.score2 || 0);
+    table.push({
+      username: row.username || userId,
+      pick1: row.name1,
+      score1: score1,
+      pick2: row.name2,
+      score2: score2,
+      weekTotal: Math.round(weekTotal * 100) / 100,
+      seasonTotal: Math.round((seasonTotals[userId] || 0) * 100) / 100,
+    });
+  }
+
+  table.sort(function (a, b) {
+    if (b.weekTotal !== a.weekTotal) return b.weekTotal - a.weekTotal;
+    return String(a.username).localeCompare(String(b.username));
+  });
+
+  sheet.getRange(1, 1, 1, 7).merge();
+  sheet
+    .getRange(1, 1)
+    .setValue("Bad QB picks — Week " + week)
+    .setFontWeight("bold")
+    .setFontSize(14);
+
+  var output = [["Username", "Pick 1", "Score 1", "Pick 2", "Score 2", "Week total", "Season total"]];
+  for (var t = 0; t < table.length; t++) {
+    output.push([
+      table[t].username,
+      table[t].pick1,
+      table[t].score1,
+      table[t].pick2,
+      table[t].score2,
+      table[t].weekTotal,
+      table[t].seasonTotal,
+    ]);
+  }
+
+  sheet.getRange(3, 1, output.length, 7).setValues(output);
+  sheet.getRange(3, 1, 1, 7).setFontWeight("bold");
+  if (output.length > 1) {
+    var dataRows = output.length - 1;
+    sheet.getRange(4, 3, dataRows, 1).setNumberFormat("0.00");
+    sheet.getRange(4, 5, dataRows, 3).setNumberFormat("0.00");
+  }
+  sheet.setFrozenRows(3);
+  sheet.autoResizeColumns(1, 7);
 }
 
 function toDateKey_(value, tz) {
