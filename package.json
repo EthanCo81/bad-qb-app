@@ -1,0 +1,19 @@
+{
+  "name": "bad-qb-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Discord button workflow that logs two names and the clicker to Google Sheets",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/register-commands.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
