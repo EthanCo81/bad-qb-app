@@ -15,7 +15,6 @@ import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, us
 import { slashCommands } from "./commands.js";
 import { maybeNudgeMissingPicks } from "./nudge.js";
 import {
-  PAGE_ID_PREFIX,
   SELECT_ID_PREFIX,
   eligibleQbs,
   parsePickControlId,
@@ -64,15 +63,14 @@ function excludeForUser(interaction, extraNames = []) {
   return exclude;
 }
 
-function pickMenuFor(interaction, { page } = {}) {
+function pickMenuFor(interaction) {
   const existing = userPicksForWeek(sheetRows, {
     userId: interaction.user.id,
     username: interaction.user.username,
   });
-  const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "", page: 0 };
+  const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "" };
   const names = eligibleQbs(excludeForUser(interaction));
   return pickSelectPayload({
-    page: page ?? pending.page ?? 0,
     names,
     existing,
     qb1: pending.qb1,
@@ -333,18 +331,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.isButton() && interaction.customId === BUTTON_ID) {
-      pendingPicks.set(interaction.user.id, { qb1: "", qb2: "", page: 0 });
-      await interaction.reply(pickMenuFor(interaction, { page: 0 }));
-      return;
-    }
-
-    if (interaction.isButton() && interaction.customId.startsWith(`${PAGE_ID_PREFIX}:`)) {
-      const parsed = parsePickControlId(interaction.customId);
-      if (!parsed) return;
-      const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "", page: 0 };
-      pending.page = parsed.page;
-      pendingPicks.set(interaction.user.id, pending);
-      await interaction.update(pickMenuFor(interaction, { page: parsed.page }));
+      pendingPicks.set(interaction.user.id, { qb1: "", qb2: "" });
+      await interaction.reply(pickMenuFor(interaction));
       return;
     }
 
@@ -352,16 +340,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const parsed = parsePickControlId(interaction.customId);
       if (!parsed) return;
       const chosen = interaction.values[0];
-      const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "", page: parsed.page };
+      const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "" };
       if (parsed.slot === 1) pending.qb1 = chosen;
       if (parsed.slot === 2) pending.qb2 = chosen;
-      pending.page = parsed.page;
       pendingPicks.set(interaction.user.id, pending);
       if (pending.qb1 && pending.qb2) {
         await completePick(interaction, pending.qb1, pending.qb2);
         return;
       }
-      await interaction.update(pickMenuFor(interaction, { page: parsed.page }));
+      await interaction.update(pickMenuFor(interaction));
     }
   } catch (error) {
     console.error(error);
