@@ -1,5 +1,6 @@
 import "dotenv/config";
-import { REST, Routes, SlashCommandBuilder } from "discord.js";
+import { REST, Routes } from "discord.js";
+import { slashCommands } from "./commands.js";
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
@@ -10,18 +11,10 @@ if (!token || !clientId) {
   process.exit(1);
 }
 
-const commands = [
-  new SlashCommandBuilder()
-    .setName("post-button")
-    .setDescription("Post the two-name intake button in this channel")
-    .toJSON(),
-];
-
 const rest = new REST({ version: "10" }).setToken(token);
-
 const route = guildId
   ? Routes.applicationGuildCommands(clientId, guildId)
   : Routes.applicationCommands(clientId);
 
-await rest.put(route, { body: commands });
-console.log(`Registered /post-button ${guildId ? `for guild ${guildId}` : "globally"}`);
+await rest.put(route, { body: slashCommands() });
+console.log(`Registered slash commands ${guildId ? `for guild ${guildId}` : "globally"}`);
