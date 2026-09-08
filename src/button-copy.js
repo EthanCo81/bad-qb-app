@@ -1,6 +1,15 @@
 const timezone = process.env.DISPLAY_TIMEZONE || "America/Chicago";
 const WEEK1_START = "2026-09-08"; // Tuesday; week 1 is 9/8 through 9/14, week 2 starts 9/15
 
+export function localHour(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  return Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+}
+
 export function dateKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,

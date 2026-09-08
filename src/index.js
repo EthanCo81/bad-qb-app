@@ -12,6 +12,7 @@ import {
 } from "discord.js";
 import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, userPicksForWeek, weekNumber } from "./button-copy.js";
 import { slashCommands } from "./commands.js";
+import { maybeNudgeMissingPicks } from "./nudge.js";
 import { loadPostedMessage, savePostedMessage } from "./posted-message.js";
 import { isKnownQb, suggestQbs } from "./qbs.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
@@ -26,7 +27,7 @@ if (!token) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
 let lastRenderedDate = "";
@@ -188,6 +189,12 @@ client.once(Events.ClientReady, async (readyClient) => {
   } catch (error) {
     console.error("Failed to fill Sleeper scores", error);
   }
+  try {
+    await loadSheetRows();
+    await maybeNudgeMissingPicks(readyClient, sheetRows);
+  } catch (error) {
+    console.error("Failed to send daily missing-pick nudge", error);
+  }
 
   setInterval(() => {
     if (dateKey() !== lastRenderedDate) {
@@ -198,6 +205,11 @@ client.once(Events.ClientReady, async (readyClient) => {
     scoreFinishedWeeks().catch((error) => {
       console.error("Failed to fill Sleeper scores", error);
     });
+    loadSheetRows()
+      .then(() => maybeNudgeMissingPicks(readyClient, sheetRows))
+      .catch((error) => {
+        console.error("Failed to send daily missing-pick nudge", error);
+      });
   }, 60_000);
 });
 

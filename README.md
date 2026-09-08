@@ -15,10 +15,12 @@ After scores land, Apps Script writes a readable tab named **Week 1**, **Week 2*
 ### 1. Discord
 
 1. Create an application at [Discord Developer Portal](https://discord.com/developers/applications).
-2. Bot tab: create a bot, copy the token.
-3. OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Bot permission: **Send Messages**.
+2. Bot tab: create a bot, copy the token. Enable **Server Members Intent** (required so the bot can see who is in `#bad-qb` for the daily reminder).
+3. OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Bot permissions: **Send Messages**, **Mention Members** if shown (otherwise Send Messages is enough to ping users).
 4. Invite the bot to your server.
 5. Copy the application ID (that is `DISCORD_CLIENT_ID`). Optionally copy the server ID for `DISCORD_GUILD_ID`.
+
+Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot posts in `#bad-qb` and tags members who can see that channel and have not submitted this week. Override with `DISCORD_NUDGE_CHANNEL` / `DISCORD_NUDGE_HOUR` in `.env`. Keep `npm start` running or that reminder will not fire.
 
 ### 2. Google Sheet via Apps Script
 
