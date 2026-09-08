@@ -8,37 +8,71 @@ function required(name) {
   return value;
 }
 
+function resolveRedirectUrl(currentUrl, location) {
+  return new URL(location, currentUrl).href;
+}
+
+function isGoogleusercontentUrl(url) {
+  try {
+    return new URL(url).hostname.endsWith("googleusercontent.com");
+  } catch {
+    return false;
+  }
+}
+
+function sheetWebhookErrorPage(text) {
+  const compact = String(text).replace(/\s+/g, " ").trim();
+  if (/Script function not found:\s*doGet/i.test(compact)) {
+    return "Apps Script handled a GET without doGet. Keep POSTing to /exec until Google redirects to googleusercontent, then GET that URL. Redeploy apps-script/Code.gs (it includes doGet) if this still happens.";
+  }
+  if (compact.startsWith("<!") || compact.startsWith("<html")) {
+    return compact.slice(0, 180);
+  }
+  return null;
+}
+
 async function postToSheet(payload) {
   const webhookUrl = required("SHEETS_WEBHOOK_URL");
   const secret = required("SHEETS_WEBHOOK_SECRET");
   const body = JSON.stringify({ secret, ...payload });
-  let response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body,
-    redirect: "manual",
-  });
+  let url = webhookUrl;
+  let method = "POST";
+  let response;
 
-  // Apps Script /exec 302s to googleusercontent; that URL only accepts GET
-  // (Google still runs doPost with the original body).
-  for (let hop = 0; hop < 5 && response.status >= 300 && response.status < 400; hop += 1) {
+  // /exec 302s first to another script.google.com URL (must stay POST), then to
+  // googleusercontent, which only accepts GET and still runs doPost.
+  for (let hop = 0; hop < 6; hop += 1) {
+    response = await fetch(url, {
+      method,
+      headers: method === "POST" ? { "Content-Type": "text/plain;charset=utf-8" } : undefined,
+      body: method === "POST" ? body : undefined,
+      redirect: "manual",
+    });
+    if (response.status < 300 || response.status >= 400) {
+      break;
+    }
     const location = response.headers.get("location");
     if (!location) {
       throw new Error(`Sheet webhook redirected without a Location header (${response.status})`);
     }
-    response = await fetch(location, { method: "GET", redirect: "manual" });
+    url = resolveRedirectUrl(url, location);
+    method = isGoogleusercontentUrl(url) ? "GET" : "POST";
   }
 
   const text = await response.text();
+  const htmlError = sheetWebhookErrorPage(text);
   if (!response.ok) {
-    throw new Error(`Sheet webhook failed (${response.status}): ${text}`);
+    throw new Error(`Sheet webhook failed (${response.status}): ${htmlError || text}`);
+  }
+  if (htmlError) {
+    throw new Error(`Sheet webhook returned non-JSON: ${htmlError}`);
   }
 
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error(`Sheet webhook returned non-JSON: ${text}`);
+    throw new Error(`Sheet webhook returned non-JSON: ${text.slice(0, 180)}`);
   }
 
   if (!parsed.ok) {

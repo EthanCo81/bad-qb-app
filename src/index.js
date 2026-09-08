@@ -8,24 +8,26 @@ import {
   EmbedBuilder,
   Events,
   GatewayIntentBits,
-  ModalBuilder,
   REST,
   Routes,
-  TextInputBuilder,
-  TextInputStyle,
 } from "discord.js";
 import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, userPicksForWeek, weekNumber } from "./button-copy.js";
 import { slashCommands } from "./commands.js";
 import { maybeNudgeMissingPicks } from "./nudge.js";
+import {
+  PAGE_ID_PREFIX,
+  SELECT_ID_PREFIX,
+  eligibleQbs,
+  parsePickControlId,
+  pendingPicks,
+  pickSelectPayload,
+} from "./pick-select.js";
 import { clearPostedMessage, loadPostedMessage, savePostedMessage } from "./posted-message.js";
 import { canonicalQb, suggestQbs } from "./qbs.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
 import { buildScoreUpdates, currentSleeperSeason } from "./sleeper-scores.js";
 
 const BUTTON_ID = "bad-qb-open-form";
-const PICK_MODAL_ID = "bad-qb-pick-modal";
-const QB1_INPUT = "qb1";
-const QB2_INPUT = "qb2";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -50,54 +52,54 @@ function formButtonRow(label) {
   );
 }
 
-function pickModal(existing) {
-  const firstPlaceholder = existing
-    ? `Currently ${existing.name1}`
-    : "Type a QB name from the list";
-  const secondPlaceholder = existing
-    ? `Currently ${existing.name2}`
-    : "Type a different QB name";
-  return new ModalBuilder()
-    .setCustomId(PICK_MODAL_ID)
-    .setTitle(existing ? "Replace this week's picks" : "Pick two QBs")
-    .addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId(QB1_INPUT)
-          .setLabel("First QB")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setMaxLength(80)
-          .setPlaceholder(firstPlaceholder.slice(0, 100)),
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId(QB2_INPUT)
-          .setLabel("Second QB")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setMaxLength(80)
-          .setPlaceholder(secondPlaceholder.slice(0, 100)),
-      ),
-    );
+function excludeForUser(interaction, extraNames = []) {
+  const identity = {
+    userId: interaction.user.id,
+    username: interaction.user.username,
+  };
+  const exclude = cappedPlayersForUser(sheetRows, identity, { ignoreWeek: weekNumber() });
+  for (const name of extraNames) {
+    if (name) exclude.add(String(name).toLowerCase());
+  }
+  return exclude;
+}
+
+function pickMenuFor(interaction, { page } = {}) {
+  const existing = userPicksForWeek(sheetRows, {
+    userId: interaction.user.id,
+    username: interaction.user.username,
+  });
+  const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "", page: 0 };
+  const names = eligibleQbs(excludeForUser(interaction));
+  return pickSelectPayload({
+    page: page ?? pending.page ?? 0,
+    names,
+    existing,
+    qb1: pending.qb1,
+    qb2: pending.qb2,
+  });
 }
 
 async function completePick(interaction, name1, name2) {
-  await interaction.deferReply({ ephemeral: true });
+  if (interaction.isRepliable() && (interaction.deferred || interaction.replied)) {
+    await interaction.deferUpdate();
+  } else {
+    await interaction.deferReply({ ephemeral: true });
+  }
   const saved = await savePick({
     username: interaction.user.username,
     userId: interaction.user.id,
     name1,
     name2,
   });
+  pendingPicks.delete(interaction.user.id);
   try {
     await refreshPostedButton(interaction.client);
   } catch (error) {
     console.error("Saved the row but failed to refresh the button message", error);
   }
-  await interaction.editReply(
-    `Saved **${saved.name1}** and **${saved.name2}** to the sheet (logged as \`${interaction.user.username}\`).`,
-  );
+  const text = `Saved **${saved.name1}** and **${saved.name2}** to the sheet (logged as \`${interaction.user.username}\`).`;
+  await interaction.editReply({ content: text, components: [] });
 }
 
 async function loadSheetRows() {
@@ -331,28 +333,41 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (interaction.isButton() && interaction.customId === BUTTON_ID) {
-      try {
-        await loadSheetRows();
-      } catch (error) {
-        console.error("Failed to load picks before showing the pick form", error);
-      }
-      const existing = userPicksForWeek(sheetRows, {
-        userId: interaction.user.id,
-        username: interaction.user.username,
-      });
-      await interaction.showModal(pickModal(existing));
+      pendingPicks.set(interaction.user.id, { qb1: "", qb2: "", page: 0 });
+      await interaction.reply(pickMenuFor(interaction, { page: 0 }));
       return;
     }
 
-    if (interaction.isModalSubmit() && interaction.customId === PICK_MODAL_ID) {
-      await completePick(
-        interaction,
-        interaction.fields.getTextInputValue(QB1_INPUT).trim(),
-        interaction.fields.getTextInputValue(QB2_INPUT).trim(),
-      );
+    if (interaction.isButton() && interaction.customId.startsWith(`${PAGE_ID_PREFIX}:`)) {
+      const parsed = parsePickControlId(interaction.customId);
+      if (!parsed) return;
+      const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "", page: 0 };
+      pending.page = parsed.page;
+      pendingPicks.set(interaction.user.id, pending);
+      await interaction.update(pickMenuFor(interaction, { page: parsed.page }));
+      return;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${SELECT_ID_PREFIX}:`)) {
+      const parsed = parsePickControlId(interaction.customId);
+      if (!parsed) return;
+      const chosen = interaction.values[0];
+      const pending = pendingPicks.get(interaction.user.id) || { qb1: "", qb2: "", page: parsed.page };
+      if (parsed.slot === 1) pending.qb1 = chosen;
+      if (parsed.slot === 2) pending.qb2 = chosen;
+      pending.page = parsed.page;
+      pendingPicks.set(interaction.user.id, pending);
+      if (pending.qb1 && pending.qb2) {
+        await completePick(interaction, pending.qb1, pending.qb2);
+        return;
+      }
+      await interaction.update(pickMenuFor(interaction, { page: parsed.page }));
     }
   } catch (error) {
     console.error(error);
+    if (error instanceof DiscordAPIError && error.code === 10062) {
+      return;
+    }
     if (interaction.isAutocomplete()) {
       await interaction.respond([]).catch(() => {});
       return;
