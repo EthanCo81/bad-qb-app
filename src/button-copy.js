@@ -10,6 +10,13 @@ export function localHour(date = new Date()) {
   return Number(parts.find((part) => part.type === "hour")?.value ?? "0");
 }
 
+export function localWeekday(date = new Date()) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+  }).format(date);
+}
+
 export function dateKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
