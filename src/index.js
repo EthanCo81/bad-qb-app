@@ -10,7 +10,7 @@ import {
 } from "discord.js";
 import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, weekNumber } from "./button-copy.js";
 import { slashCommands } from "./commands.js";
-import { maybeNudgeMissingPicks } from "./nudge.js";
+import { maybeNudgeMissingPicks, weekSummaryPayloads } from "./nudge.js";
 import { clearPostedMessage, loadPostedMessage, savePostedMessage } from "./posted-message.js";
 import { canonicalQb, suggestQbs } from "./qbs.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
@@ -269,6 +269,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isChatInputCommand() && interaction.commandName === "summary") {
+      await interaction.deferReply();
+      await loadSheetRows();
+      const week = interaction.options.getInteger("week", true);
+      const payloads = await weekSummaryPayloads(week, sheetRows, interaction.guild);
+      await interaction.editReply(payloads[0]);
+      for (const payload of payloads.slice(1)) {
+        await interaction.followUp(payload);
+      }
+      return;
+    }
+
     if (interaction.isChatInputCommand() && interaction.commandName === "pick") {
       await completePick(
         interaction,
@@ -288,7 +300,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const message =
       error?.userFacing && error instanceof Error
         ? error.message
-        : "Could not save those names. Check the bot logs and Apps Script webhook.";
+        : interaction.commandName === "summary"
+          ? "Could not post that week's summary. Check the bot logs and Apps Script webhook."
+          : "Could not save those names. Check the bot logs and Apps Script webhook.";
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp({ content: message, ephemeral: true }).catch(() => {});
     } else if (interaction.isRepliable()) {

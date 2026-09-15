@@ -113,6 +113,46 @@ export async function setWeekScores(updates) {
   });
 }
 
+export async function listWeekSheet(week) {
+  const parsed = await postToSheet({ action: "listWeek", week: Number(week) });
+  if (!parsed.found) return null;
+  const raw = Array.isArray(parsed.rows) ? parsed.rows : [];
+  return parseWeekSheetRows(raw);
+}
+
+export function parseWeekSheetRows(raw) {
+  let title = "";
+  let headerIndex = -1;
+  for (let i = 0; i < raw.length; i++) {
+    const row = Array.isArray(raw[i]) ? raw[i] : [];
+    const first = String(row[0] ?? "").trim();
+    if (!title && first) title = first;
+    if (/^username$/i.test(first)) {
+      headerIndex = i;
+      break;
+    }
+  }
+  if (headerIndex === -1) {
+    return { title, entries: [] };
+  }
+
+  const entries = [];
+  for (let i = headerIndex + 1; i < raw.length; i++) {
+    const row = Array.isArray(raw[i]) ? raw[i] : [];
+    if (!row.some((cell) => String(cell ?? "").trim() !== "")) continue;
+    entries.push({
+      username: String(row[0] ?? "").trim(),
+      pick1: String(row[1] ?? "").trim(),
+      score1: String(row[2] ?? "").trim(),
+      pick2: String(row[3] ?? "").trim(),
+      score2: String(row[4] ?? "").trim(),
+      weekTotal: String(row[5] ?? "").trim(),
+      seasonTotal: String(row[6] ?? "").trim(),
+    });
+  }
+  return { title, entries };
+}
+
 export async function listSheetRows() {
   const parsed = await postToSheet({ action: "list" });
   const raw = Array.isArray(parsed.rows) ? parsed.rows : [];

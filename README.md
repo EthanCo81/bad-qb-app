@@ -20,7 +20,7 @@ After scores land, Apps Script writes a readable tab named **Week 1**, **Week 2*
 4. Invite the bot to your server.
 5. Copy the application ID (that is `DISCORD_CLIENT_ID`). Optionally copy the server ID for `DISCORD_GUILD_ID`.
 
-Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot posts in `#bad-qb` and tags members who can see that channel and have not submitted this week. Override with `DISCORD_NUDGE_CHANNEL` / `DISCORD_NUDGE_HOUR` in `.env`. Keep `npm start` running or that reminder will not fire.
+Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot posts in `#bad-qb`. On **Tuesday** it posts a recap of the previous week from the spreadsheet's **Week X** tab (it retries until scores have written that tab). Other days it tags members who can see that channel and have not submitted this week. Override with `DISCORD_NUDGE_CHANNEL` / `DISCORD_NUDGE_HOUR` in `.env`. Keep `npm start` running or those messages will not fire. Redeploy the Apps Script web app after updating `Code.gs` so the bot can read Week tabs.
 
 ### 2. Google Sheet via Apps Script
 
@@ -56,6 +56,6 @@ docker compose up -d --build
 
 Logs: `docker compose logs -f`. Stop: `docker compose down`. Volume `bot-data` persists `data/` across recreates.
 
-`/post-message` and `/pick` register when the bot starts. Use `DISCORD_GUILD_ID` so they appear immediately on that server.
+`/post-message`, `/pick`, and `/summary` register when the bot starts. Use `DISCORD_GUILD_ID` so they appear immediately on that server.
 
-In Discord, run `/post-message` in the channel where you want the weekly message. Log names with `/pick` and type to search each QB.
+In Discord, run `/post-message` in the channel where you want the weekly message. Log names with `/pick` and type to search each QB. `/summary week:1` posts that week's recap from the spreadsheet's **Week X** tab.

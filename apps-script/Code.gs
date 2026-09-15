@@ -26,6 +26,22 @@ function doPost(e) {
     return json_({ ok: true, rows: rows });
   }
 
+  if (data.action === "listWeek") {
+    const week = Number(data.week);
+    if (!week || isNaN(week)) {
+      return json_({ ok: false, error: "listWeek requires week" });
+    }
+    const weekSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Week " + week);
+    if (!weekSheet) {
+      return json_({ ok: true, found: false, rows: [] });
+    }
+    return json_({
+      ok: true,
+      found: true,
+      rows: weekSheet.getDataRange().getDisplayValues(),
+    });
+  }
+
   if (data.action === "upsert") {
     upsertWeek_(sheet, data);
     return json_({ ok: true });
