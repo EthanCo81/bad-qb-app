@@ -1,3 +1,5 @@
+import { teammatesForQb } from "./qbs.js";
+
 const SLEEPER_API = "https://api.sleeper.app/v1";
 const DEFAULT_LEAGUE_ID = "1322259662862581760";
 
@@ -101,18 +103,50 @@ export async function buildScoreUpdates(rows, week, season) {
   }
 
   const [{ index }, scoring] = await Promise.all([loadPlayers(), loadScoring()]);
-  return targets.map((row) => ({
-    userId: String(row.userId),
-    week,
-    score_1: pointsForName(row.name1, index, statsByPlayer, scoring),
-    score_2: pointsForName(row.name2, index, statsByPlayer, scoring),
-  }));
+  return targets.map((row) => {
+    const pick1 = resolvePickScore(row.name1, row.name2, index, statsByPlayer, scoring);
+    const pick2 = resolvePickScore(row.name2, pick1.name, index, statsByPlayer, scoring);
+    return {
+      userId: String(row.userId),
+      week,
+      name_1: pick1.name,
+      name_2: pick2.name,
+      score_1: pick1.score,
+      score_2: pick2.score,
+    };
+  });
 }
 
 function pointsForName(name, index, statsByPlayer, scoring) {
   const id = findQbId(name, index);
   if (!id) return 0;
   return fantasyPoints(statsByPlayer[id], scoring);
+}
+
+/**
+ * A score of 0 means the QB did not play (illegal pick). Replace with a
+ * same-team QB who scored non-zero this week, preferring the highest score.
+ * Skips the other pick on the same row so both slots stay distinct.
+ */
+export function resolvePickScore(name, otherPickName, index, statsByPlayer, scoring) {
+  const score = pointsForName(name, index, statsByPlayer, scoring);
+  if (score !== 0) {
+    return { name, score };
+  }
+
+  const otherKey = String(otherPickName || "")
+    .trim()
+    .toLowerCase();
+  let best = null;
+  for (const teammate of teammatesForQb(name)) {
+    if (teammate.toLowerCase() === otherKey) continue;
+    const teammateScore = pointsForName(teammate, index, statsByPlayer, scoring);
+    if (teammateScore === 0) continue;
+    if (!best || teammateScore > best.score) {
+      best = { name: teammate, score: teammateScore };
+    }
+  }
+  return best || { name, score: 0 };
 }
 
 export async function currentSleeperSeason() {

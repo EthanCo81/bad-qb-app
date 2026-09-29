@@ -128,7 +128,14 @@ function setScores_(sheet, updates) {
       if (i === 0 && String(values[i][0]).toLowerCase() === "timestamp") continue;
       if (String(values[i][2] || "") !== userId) continue;
       if (Number(values[i][5]) !== week) continue;
+      var name1 = update.name_1 != null && update.name_1 !== "" ? update.name_1 : values[i][3];
+      var name2 = update.name_2 != null && update.name_2 !== "" ? update.name_2 : values[i][4];
+      sheet.getRange(i + 1, 4, 1, 2).setValues([[name1, name2]]);
       sheet.getRange(i + 1, 7, 1, 2).setValues([[update.score_1, update.score_2]]);
+      values[i][3] = name1;
+      values[i][4] = name2;
+      values[i][6] = update.score_1;
+      values[i][7] = update.score_2;
     }
   }
 }
