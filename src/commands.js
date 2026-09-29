@@ -32,5 +32,8 @@ export function slashCommands() {
           .setRequired(true)
           .setAutocomplete(true),
       ),
+    new SlashCommandBuilder()
+      .setName("check")
+      .setDescription("Show your two QB picks for this week"),
   ].map((command) => command.toJSON());
 }

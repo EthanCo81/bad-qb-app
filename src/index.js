@@ -8,7 +8,14 @@ import {
   REST,
   Routes,
 } from "discord.js";
-import { buildButtonPayload, cappedPlayersForUser, currentWeekRange, dateKey, weekNumber } from "./button-copy.js";
+import {
+  buildButtonPayload,
+  cappedPlayersForUser,
+  currentWeekRange,
+  dateKey,
+  userPicksForWeek,
+  weekNumber,
+} from "./button-copy.js";
 import { slashCommands } from "./commands.js";
 import { maybeNudgeMissingPicks, weekSummaryPayloads } from "./nudge.js";
 import { clearPostedMessage, loadPostedMessage, savePostedMessage } from "./posted-message.js";
@@ -287,6 +294,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
         interaction.options.getString("qb1", true).trim(),
         interaction.options.getString("qb2", true).trim(),
       );
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "check") {
+      await interaction.deferReply({ ephemeral: true });
+      await loadSheetRows();
+      const picks = userPicksForWeek(sheetRows, {
+        userId: interaction.user.id,
+        username: interaction.user.username,
+      });
+      if (!picks) {
+        await interaction.editReply(
+          "You haven't made your picks, please use /pick to submit",
+        );
+        return;
+      }
+      const week = weekNumber();
+      await interaction.editReply(
+        `Your week ${week} picks: **${picks.name1}** and **${picks.name2}**.`,
+      );
     }
   } catch (error) {
     console.error(error);
@@ -302,7 +329,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         ? error.message
         : interaction.commandName === "summary"
           ? "Could not post that week's summary. Check the bot logs and Apps Script webhook."
-          : "Could not save those names. Check the bot logs and Apps Script webhook.";
+          : interaction.commandName === "check"
+            ? "Could not look up your picks. Check the bot logs and Apps Script webhook."
+            : "Could not save those names. Check the bot logs and Apps Script webhook.";
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp({ content: message, ephemeral: true }).catch(() => {});
     } else if (interaction.isRepliable()) {
