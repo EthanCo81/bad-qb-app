@@ -56,6 +56,6 @@ docker compose up -d --build
 
 Logs: `docker compose logs -f`. Stop: `docker compose down`. Volume `bot-data` persists `data/` across recreates.
 
-`/post-message`, `/pick`, and `/summary` register when the bot starts. Use `DISCORD_GUILD_ID` so they appear immediately on that server.
+`/post-message`, `/pick`, `/check`, and `/summary` register when the bot starts. Use `DISCORD_GUILD_ID` so they appear immediately on that server.
 
-In Discord, run `/post-message` in the channel where you want the weekly message. Log names with `/pick` and type to search each QB. `/summary week:1` posts that week's recap from the spreadsheet's **Week X** tab.
+In Discord, run `/post-message` in the channel where you want the weekly message. Log names with `/pick` and type to search each QB. `/check` privately shows your two picks for the current week (or tells you to submit with `/pick`). `/summary week:1` posts that week's recap from the spreadsheet's **Week X** tab.
