@@ -16,11 +16,11 @@ After scores land, Apps Script writes a readable tab named **Week 1**, **Week 2*
 
 1. Create an application at [Discord Developer Portal](https://discord.com/developers/applications).
 2. Bot tab: create a bot, copy the token. Enable **Server Members Intent** (required so the bot can see who is in `#bad-qb` for the daily reminder).
-3. OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Bot permissions: **Send Messages**, **Mention Members** if shown (otherwise Send Messages is enough to ping users).
+3. OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Bot permissions: **Send Messages**, **Mention Members** if shown (otherwise Send Messages is enough for weekly recap pings).
 4. Invite the bot to your server.
 5. Copy the application ID (that is `DISCORD_CLIENT_ID`). Optionally copy the server ID for `DISCORD_GUILD_ID`.
 
-Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot posts in `#bad-qb`. On **Tuesday** it posts a recap of the previous week from the spreadsheet's **Week X** tab (it retries until scores have written that tab). Other days it tags members who can see that channel and have not submitted this week. Override with `DISCORD_NUDGE_CHANNEL` / `DISCORD_NUDGE_HOUR` in `.env`. Keep `npm start` running or those messages will not fire. Redeploy the Apps Script web app after updating `Code.gs` so the bot can read Week tabs.
+Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot runs reminders for `#bad-qb`. On **Tuesday** it posts a recap of the previous week from the spreadsheet's **Week X** tab in that channel (it retries until scores have written that tab). Other days it DMs each member who can see that channel and has not submitted this week (one private message per person). Override with `DISCORD_NUDGE_CHANNEL` / `DISCORD_NUDGE_HOUR` in `.env`. Keep `npm start` running or those messages will not fire. Redeploy the Apps Script web app after updating `Code.gs` so the bot can read Week tabs.
 
 ### 2. Google Sheet via Apps Script
 

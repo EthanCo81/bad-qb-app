@@ -45,24 +45,6 @@ async function findNudgeChannel(client) {
   return null;
 }
 
-function chunkUserIds(ids) {
-  const chunks = [];
-  let current = [];
-  let length = 0;
-  for (const id of ids) {
-    const mention = `<@${id}> `;
-    if (current.length && length + mention.length > 1600) {
-      chunks.push(current);
-      current = [];
-      length = 0;
-    }
-    current.push(id);
-    length += mention.length;
-  }
-  if (current.length) chunks.push(current);
-  return chunks;
-}
-
 function isTuesday(date = new Date()) {
   return localWeekday(date) === "Tue";
 }
@@ -248,21 +230,23 @@ async function sendMissingPickNudge(client, sheetRows) {
   }
 
   const week = weekNumber();
-  const pickHint = "Submit with **/pick**.";
-  const chunks = chunkUserIds(missing.map((member) => member.id));
-  for (let i = 0; i < chunks.length; i++) {
-    const mentions = chunks[i].map((id) => `<@${id}>`).join(" ");
-    const header =
-      i === 0
-        ? `Week ${week} picks are missing from:\n${mentions}\n${pickHint}`
-        : mentions;
-    await channel.send({
-      content: header,
-      allowedMentions: { users: chunks[i] },
-    });
+  const content = `Week ${week} picks are missing. Submit with **/pick**.`;
+  let sent = 0;
+  for (const member of missing) {
+    try {
+      await member.send(content);
+      sent += 1;
+    } catch (error) {
+      console.warn(
+        `Daily nudge: could not DM ${member.user.tag} (${member.id})`,
+        error?.message || error,
+      );
+    }
   }
   await saveNudgeDate(today);
-  console.log(`Daily nudge tagged ${missing.length} member(s) in #${CHANNEL_NAME}`);
+  console.log(
+    `Daily nudge DM'd ${sent}/${missing.length} member(s) missing picks for #${CHANNEL_NAME}`,
+  );
 }
 
 export async function maybeNudgeMissingPicks(client, sheetRows) {
