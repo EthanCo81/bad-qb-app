@@ -13,6 +13,7 @@ import {
   cappedPlayersForUser,
   currentWeekRange,
   dateKey,
+  usedQbsForUser,
   userPicksForWeek,
   weekNumber,
 } from "./button-copy.js";
@@ -314,6 +315,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.editReply(
         `Your week ${week} picks: **${picks.name1}** and **${picks.name2}**.`,
       );
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "used") {
+      await interaction.deferReply({ ephemeral: true });
+      await loadSheetRows();
+      const used = usedQbsForUser(sheetRows, {
+        userId: interaction.user.id,
+        username: interaction.user.username,
+      });
+      if (used.length === 0) {
+        await interaction.editReply(
+          "You haven't used any QBs twice yet — all are still available.",
+        );
+        return;
+      }
+      const list = used.map((name) => `• **${name}**`).join("\n");
+      await interaction.editReply(
+        `QBs you can no longer pick (used in 2 weeks):\n${list}`,
+      );
+      return;
     }
   } catch (error) {
     console.error(error);
@@ -331,7 +353,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
           ? "Could not post that week's summary. Check the bot logs and Apps Script webhook."
           : interaction.commandName === "check"
             ? "Could not look up your picks. Check the bot logs and Apps Script webhook."
-            : "Could not save those names. Check the bot logs and Apps Script webhook.";
+            : interaction.commandName === "used"
+              ? "Could not look up your used QBs. Check the bot logs and Apps Script webhook."
+              : "Could not save those names. Check the bot logs and Apps Script webhook.";
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp({ content: message, ephemeral: true }).catch(() => {});
     } else if (interaction.isRepliable()) {
