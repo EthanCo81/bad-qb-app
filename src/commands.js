@@ -35,5 +35,8 @@ export function slashCommands() {
     new SlashCommandBuilder()
       .setName("check")
       .setDescription("Show your two QB picks for this week"),
+    new SlashCommandBuilder()
+      .setName("used")
+      .setDescription("Show QBs you can no longer pick (already used twice)"),
   ].map((command) => command.toJSON());
 }

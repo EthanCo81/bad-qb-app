@@ -92,7 +92,8 @@ export function userPicksForWeek(rows, identity, date = new Date()) {
   return { name1: row.name1, name2: row.name2 };
 }
 
-export function cappedPlayersForUser(rows, identity, { ignoreWeek } = {}) {
+/** Display names of QBs this user has already picked in 2+ different weeks. */
+export function usedQbsForUser(rows, identity, { ignoreWeek } = {}) {
   const weeksByPlayer = new Map();
   for (const row of rows) {
     if (!isSameUser(row, identity)) continue;
@@ -103,16 +104,21 @@ export function cappedPlayersForUser(rows, identity, { ignoreWeek } = {}) {
     for (const name of [row.name1, row.name2]) {
       if (!name) continue;
       const key = name.toLowerCase();
-      if (!weeksByPlayer.has(key)) weeksByPlayer.set(key, new Set());
-      weeksByPlayer.get(key).add(week);
+      if (!weeksByPlayer.has(key)) {
+        weeksByPlayer.set(key, { display: name, weeks: new Set() });
+      }
+      weeksByPlayer.get(key).weeks.add(week);
     }
   }
 
-  const capped = new Set();
-  for (const [name, weeks] of weeksByPlayer) {
-    if (weeks.size >= 2) capped.add(name);
-  }
-  return capped;
+  return [...weeksByPlayer.values()]
+    .filter((entry) => entry.weeks.size >= 2)
+    .map((entry) => entry.display)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+export function cappedPlayersForUser(rows, identity, options) {
+  return new Set(usedQbsForUser(rows, identity, options).map((name) => name.toLowerCase()));
 }
 
 export function buildButtonPayload() {
