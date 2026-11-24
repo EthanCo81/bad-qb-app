@@ -1,16 +1,16 @@
-// Active + practice-squad NFL QBs from Ourlads 2026 team depth charts (fetched 2026-11-04)
+// Active + practice-squad NFL QBs from Ourlads depth charts (fetched 2026-11-24)
 // https://www.ourlads.com/nfldepthcharts/depthcharts.aspx
-export const QBS = [
+// Runtime refreshes land in data/qbs.json via src/roster-update.js (Tuesday 1am).
+export const DEFAULT_QBS = [
   { name: "Aaron Rodgers", team: "PIT" },
   { name: "Aidan O'Connell", team: "LV" },
   { name: "Andy Dalton", team: "ATL" },
   { name: "Anthony Richardson Sr.", team: "IND" },
-  { name: "Athan Kaliakmanis", team: "WAS" },
-  { name: "Austin Reed", team: "BAL" },
   { name: "Baker Mayfield", team: "TB" },
   { name: "Behren Morton", team: "NE" },
   { name: "Bo Nix", team: "DEN" },
   { name: "Brady Cook", team: "MIA" },
+  { name: "Brett Rypien", team: "LV" },
   { name: "Brock Purdy", team: "SF" },
   { name: "Bryce Young", team: "CAR" },
   { name: "C.J. Stroud", team: "HOU" },
@@ -20,27 +20,20 @@ export const QBS = [
   { name: "Cam Ward", team: "TEN" },
   { name: "Carson Beck", team: "ARZ" },
   { name: "Carson Wentz", team: "MIN" },
-  { name: "Case Keenum", team: "CHI" },
-  { name: "Cole Payton", team: "PHI" },
+  { name: "Cooper Rush", team: "TB" },
   { name: "Dak Prescott", team: "DAL" },
-  { name: "Daniel Jones", team: "IND" },
   { name: "Davis Mills", team: "HOU" },
   { name: "Deshaun Watson", team: "CLE" },
   { name: "Dillon Gabriel", team: "CLE" },
   { name: "DJ Uiagalelei", team: "LAC" },
   { name: "Drake Maye", team: "NE" },
-  { name: "Drew Allar", team: "PIT" },
   { name: "Drew Lock", team: "SEA" },
-  { name: "Easton Stick", team: "TB" },
   { name: "Fernando Mendoza", team: "LV" },
-  { name: "Gardner Minshew II", team: "ARZ" },
-  { name: "Garrett Nussmeier", team: "KC" },
   { name: "Geno Smith", team: "NYJ" },
-  { name: "Haynes King", team: "CAR" },
   { name: "Hendon Hooker", team: "TEN" },
   { name: "J.J. McCarthy", team: "NYG" },
   { name: "Jack Strand", team: "ATL" },
-  { name: "Jacoby Brissett", team: "ARZ" },
+  { name: "Jacoby Brissett", team: "BAL" },
   { name: "Jake Browning", team: "LAC" },
   { name: "Jake Haener", team: "NYG" },
   { name: "Jalen Milroe", team: "SEA" },
@@ -53,38 +46,31 @@ export const QBS = [
   { name: "Joe Fagnano", team: "BAL" },
   { name: "Joe Flacco", team: "CIN" },
   { name: "Joe Milton", team: "PHI" },
-  { name: "Joey Aguilar", team: "JAX" },
+  { name: "Joey Aguilar", team: "ARZ" },
   { name: "Jordan Love", team: "GB" },
   { name: "Josh Allen", team: "BUF" },
-  { name: "Josh Johnson", team: "CIN" },
+  { name: "Josh Johnson", team: "ARZ" },
   { name: "Joshua Dobbs", team: "DET" },
   { name: "Justin Fields", team: "KC" },
   { name: "Justin Herbert", team: "LAC" },
-  { name: "Kedon Slovis", team: "BAL" },
   { name: "Kenny Pickett", team: "CAR" },
-  { name: "Kirk Cousins", team: "LV" },
-  { name: "Kurtis Rourke", team: "SF" },
+  { name: "Kirk Cousins", team: "MIN" },
   { name: "Kyle Allen", team: "BUF" },
   { name: "Kyle McCord", team: "MIA" },
   { name: "Kyle Trask", team: "DAL" },
   { name: "Kyler Murray", team: "MIN" },
-  { name: "Lamar Jackson", team: "BAL" },
   { name: "Luke Altmyer", team: "DET" },
   { name: "Mac Jones", team: "SF" },
-  { name: "Malik Willis", team: "MIA" },
   { name: "Marcus Mariota", team: "WAS" },
   { name: "Mason Rudolph", team: "PIT" },
   { name: "Matthew Stafford", team: "LAR" },
-  { name: "Max Brosmer", team: "MIN" },
   { name: "Michael Penix Jr.", team: "ATL" },
-  { name: "Miller Moss", team: "CHI" },
   { name: "Mitchell Trubisky", team: "TEN" },
   { name: "Nick Mullens", team: "JAX" },
   { name: "Patrick Mahomes", team: "KC" },
   { name: "Quinn Ewers", team: "JAX" },
   { name: "Riley Leonard", team: "IND" },
   { name: "Sam Darnold", team: "SEA" },
-  { name: "Sam Ehlinger", team: "DEN" },
   { name: "Sam Hartman", team: "WAS" },
   { name: "Sam Howell", team: "DAL" },
   { name: "Sean Clifford", team: "CIN" },
@@ -98,14 +84,26 @@ export const QBS = [
   { name: "Trevor Lawrence", team: "JAX" },
   { name: "Tua Tagovailoa", team: "ATL" },
   { name: "Ty Simpson", team: "LAR" },
-  { name: "Tyler Huntley", team: "BAL" },
   { name: "Tyler Shough", team: "NO" },
   { name: "Tyrod Taylor", team: "GB" },
   { name: "Tyson Bagent", team: "CHI" },
-  { name: "Will Howard", team: "PIT" },
   { name: "Will Levis", team: "NYJ" },
-  { name: "Zach Wilson", team: "NO" },
 ];
+
+export let QBS = DEFAULT_QBS.map((qb) => ({ ...qb }));
+
+export function normalizeQbKey(name) {
+  return String(name)
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\b(jr|sr|ii|iii|iv)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+export function replaceQbs(next) {
+  QBS = next.map((qb) => ({ name: qb.name, team: qb.team }));
+  return QBS;
+}
 
 function qbName(qb) {
   return typeof qb === "string" ? qb : qb.name;

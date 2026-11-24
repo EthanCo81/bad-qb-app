@@ -6,7 +6,9 @@ No Google Cloud project or service account. The bot POSTs to a small **Apps Scri
 
 Sheet columns written: `timestamp`, `discord_username`, `discord_user_id`, `name1`, `name2`, `week`, `score_1`, `score_2`.
 
-On each pick, `week` is the Tuesday-start week number (1, 2, 3, …). `score_1` / `score_2` stay blank until the **Tuesday after that week**. Then the bot fills them with that QB's fantasy points using [League of Villains](https://sleeper.com/leagues/1322259662862581760) scoring (`SLEEPER_LEAGUE_ID`) and Sleeper's public stats API. The bot retries every minute until stats exist (so it still works if you start it mid-Tuesday). A pick that scores **0** is treated as an illegal (did-not-play) pick: the bot looks at other QBs on the same team in `src/qbs.js` and, if one scored non-zero, replaces the pick (name and score) with that teammate.
+On each pick, `week` is the Tuesday-start week number (1, 2, 3, …). `score_1` / `score_2` stay blank until the **Tuesday after that week**. Then the bot fills them with that QB's fantasy points using [League of Villains](https://sleeper.com/leagues/1322259662862581760) scoring (`SLEEPER_LEAGUE_ID`) and Sleeper's public stats API. The bot retries every minute until stats exist (so it still works if you start it mid-Tuesday). A pick that scores **0** is treated as an illegal (did-not-play) pick: the bot looks at other QBs on the same team in the live QB list and, if one scored non-zero, replaces the pick (name and score) with that teammate.
+
+Every **Tuesday at 1:00** (`DISPLAY_TIMEZONE`, override with `ROSTER_UPDATE_HOUR`) the bot refreshes active-roster and practice-squad QBs from [Ourlads depth charts](https://www.ourlads.com/nfldepthcharts/depthcharts.aspx), writes `data/qbs.json`, and **updates each existing QB’s team** when they move (for example Jacoby Brissett ARZ → BAL). IR/reserves are excluded. Manual run: `npm run update-roster` (add `--write-source` / `npm run update-roster:write-source` to also rewrite `src/qbs.js`).
 
 After scores land, Apps Script writes a readable tab named **Week 1**, **Week 2**, and so on. Each tab lists username, both picks, both scores, that week's total, and a **season total** (all weeks combined). Older week tabs are refreshed so season totals stay current.
 
@@ -37,7 +39,7 @@ Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot run
 
 “Anyone” is required so the bot can POST without a Google login. The secret is what keeps strangers from writing to the sheet. If you change the script later, **Deploy** → **Manage deployments** → edit → **New version**. After a 405, restart the bot as well: Node must POST through Google's redirects (opening `/exec` in a browser is a GET).
 
-The weekly message title is **Bad QB picks for week X**. Week 1 starts Tuesday **2026-09-08** (through Monday 9/14); week 2 starts Tuesday 9/15, and so on. Picks are logged with **/pick**: type in each QB field to search the list. Edit `src/qbs.js` to change the names. The channel embed does **not** list anyone's picks. Timezone is `DISPLAY_TIMEZONE` in `.env` (default `America/Chicago`). Re-run `/post-message` after upgrading so the bot can track that message.
+The weekly message title is **Bad QB picks for week X**. Week 1 starts Tuesday **2026-09-08** (through Monday 9/14); week 2 starts Tuesday 9/15, and so on. Picks are logged with **/pick**: type in each QB field to search the list. The bot refreshes that list from Ourlads each Tuesday; use `npm run update-roster` to run it immediately. The channel embed does **not** list anyone's picks. Timezone is `DISPLAY_TIMEZONE` in `.env` (default `America/Chicago`). Re-run `/post-message` after upgrading so the bot can track that message.
 
 ### 3. Run
 
