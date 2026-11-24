@@ -5,6 +5,7 @@ import {
   EmbedBuilder,
   Events,
   GatewayIntentBits,
+  Partials,
   REST,
   Routes,
 } from "discord.js";
@@ -24,6 +25,12 @@ import { canonicalQb, suggestQbs } from "./qbs.js";
 import { loadPersistedRoster, maybeUpdateRoster } from "./roster-update.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
 import { buildScoreUpdates, currentSleeperSeason } from "./sleeper-scores.js";
+import {
+  handleStarterReminderReply,
+  isStarterReminderUsername,
+  maybeSendStarterReminders,
+  scheduleAfterPick,
+} from "./starter-reminder.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -32,7 +39,14 @@ if (!token) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+  // Required so DM channels arrive as partials and MessageCreate fires for DMs.
+  partials: [Partials.Channel],
 });
 
 let lastRenderedDate = "";
@@ -51,6 +65,17 @@ async function completePick(interaction, name1, name2) {
     await refreshPostedMessage(interaction.client);
   } catch (error) {
     console.error("Saved the row but failed to refresh the weekly message", error);
+  }
+  try {
+    await scheduleAfterPick({
+      username: interaction.user.username,
+      userId: interaction.user.id,
+      name1: saved.name1,
+      name2: saved.name2,
+      week: weekNumber(),
+    });
+  } catch (error) {
+    console.error("Saved the row but failed to schedule starter reminders", error);
   }
   await interaction.editReply(
     `Saved **${saved.name1}** and **${saved.name2}** to the sheet (logged as \`${interaction.user.username}\`).`,
@@ -247,6 +272,11 @@ client.once(Events.ClientReady, async (readyClient) => {
   } catch (error) {
     console.error("Failed to send daily missing-pick nudge", error);
   }
+  try {
+    await maybeSendStarterReminders(readyClient, sheetRows);
+  } catch (error) {
+    console.error("Failed to send starter-verify reminders", error);
+  }
 
   setInterval(() => {
     if (dateKey() !== lastRenderedDate) {
@@ -261,11 +291,37 @@ client.once(Events.ClientReady, async (readyClient) => {
       console.error("Failed to fill Sleeper scores", error);
     });
     loadSheetRows()
-      .then(() => maybeNudgeMissingPicks(readyClient, sheetRows))
+      .then(async () => {
+        await maybeNudgeMissingPicks(readyClient, sheetRows);
+        await maybeSendStarterReminders(readyClient, sheetRows);
+      })
       .catch((error) => {
-        console.error("Failed to send daily missing-pick nudge", error);
+        console.error("Failed to send daily missing-pick nudge or starter reminders", error);
       });
   }, 60_000);
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    if (message.author.bot) return;
+    if (message.guild) return; // only DMs
+    if (!isStarterReminderUsername(message.author.username)) return;
+
+    const result = await handleStarterReminderReply({
+      username: message.author.username,
+      userId: message.author.id,
+      content: message.content,
+    });
+    if (result.action === "permanent_stop") {
+      await message.reply("Got it — starter reminders are turned off.").catch(() => {});
+    } else if (result.action === "reschedule_1h") {
+      console.log(
+        `Starter reminder: ${message.author.username} replied; next DM in 1h`,
+      );
+    }
+  } catch (error) {
+    console.error("Failed to handle starter-reminder DM", error);
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
