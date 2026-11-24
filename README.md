@@ -22,7 +22,7 @@ After scores land, Apps Script writes a readable tab named **Week 1**, **Week 2*
 
 Every day at **11:00** (`DISPLAY_TIMEZONE`, default America/Chicago) the bot runs reminders for `#bad-qb`. On **Tuesday** it posts a recap of the previous week from the spreadsheet's **Week X** tab in that channel (it retries until scores have written that tab). Other days it DMs each member who can see that channel and has not submitted this week (one private message per person). Override with `DISCORD_NUDGE_CHANNEL` / `DISCORD_NUDGE_HOUR` in `.env`. Keep `npm start` running or those messages will not fire. Redeploy the Apps Script web app after updating `Code.gs` so the bot can read Week tabs.
 
-After **sdennison** or **jimjamit** submit `/pick`, the bot also DMs them every **4 hours** with their picks and asks them to verify those players are starting. Any DM reply reschedules the next reminder for **1 hour** later. Replying **STOP** ends reminders for that week; replying **Ethan I'm sorry** (any casing) turns the reminders off entirely.
+After **sdennison** or **jimjamit** submit `/pick`, the bot also DMs them every **4 hours** with their picks and asks them to verify those players are starting. Any DM reply (including **STOP**) reschedules the next reminder for **1 hour** later. Replying **Ethan I'm sorry** (any casing) turns the reminders off entirely.
 
 ### 2. Google Sheet via Apps Script
 

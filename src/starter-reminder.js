@@ -40,13 +40,8 @@ export function isStarterReminderUsername(username) {
 export function normalizeReplyText(text) {
   return String(text || "")
     .normalize("NFKC")
-    .replace(/[\u2018\u2019\u201A\u201B`]/g, "'")
+    .replace(/[\u2018\u2019\u201A\u201B`']/g, "'")
     .trim();
-}
-
-/** Exact STOP (case-insensitive) ends reminders for the current week. */
-export function isWeekStopReply(text) {
-  return normalizeReplyText(text).toLowerCase() === "stop";
 }
 
 /** "Ethan I'm sorry" (case-insensitive) ends all starter reminders permanently. */
@@ -80,7 +75,7 @@ function setEntry(state, username, entry) {
 
 /**
  * After a target user submits /pick, schedule (or refresh) the 4-hour reminder loop.
- * Skips if they permanently opted out, or already replied STOP for this week.
+ * Skips if they permanently opted out.
  */
 export async function scheduleAfterPick({ username, userId, name1, name2, week, now = Date.now() }) {
   if (!isStarterReminderUsername(username)) return null;
@@ -92,32 +87,13 @@ export async function scheduleAfterPick({ username, userId, name1, name2, week, 
     return existing;
   }
 
-  const weekNum = Number(week);
-  if (existing.stoppedWeek === weekNum) {
-    // Keep pick names current but do not resume reminders until next week.
-    const kept = {
-      ...existing,
-      username: String(username),
-      userId: userId != null ? String(userId) : existing.userId || "",
-      week: weekNum,
-      name1,
-      name2,
-      nextAt: null,
-    };
-    setEntry(state, username, kept);
-    await saveState(state);
-    console.log(`Starter reminder: ${username} stopped for week ${weekNum}; picks updated only`);
-    return kept;
-  }
-
   const entry = {
     username: String(username),
     userId: userId != null ? String(userId) : existing.userId || "",
-    week: weekNum,
+    week: Number(week),
     name1,
     name2,
     nextAt: now + FOUR_HOURS_MS,
-    stoppedWeek: null,
     permanentlyStopped: false,
   };
   setEntry(state, username, entry);
@@ -130,6 +106,7 @@ export async function scheduleAfterPick({ username, userId, name1, name2, week, 
 
 /**
  * Handle a DM reply from a target user. Returns what happened for logging/tests.
+ * Any reply except the permanent stop phrase reschedules the next reminder in 1 hour.
  */
 export async function handleStarterReminderReply({
   username,
@@ -147,7 +124,6 @@ export async function handleStarterReminderReply({
     name1: "",
     name2: "",
     nextAt: null,
-    stoppedWeek: null,
     permanentlyStopped: false,
   };
 
@@ -156,7 +132,6 @@ export async function handleStarterReminderReply({
   if (isPermanentStopReply(content)) {
     existing.permanentlyStopped = true;
     existing.nextAt = null;
-    existing.stoppedWeek = null;
     setEntry(state, username, existing);
     await saveState(state);
     return { action: "permanent_stop", entry: existing };
@@ -166,20 +141,7 @@ export async function handleStarterReminderReply({
     return { action: "already_permanent_stop", entry: existing };
   }
 
-  const currentWeek = weekNumber();
-  if (isWeekStopReply(content)) {
-    existing.stoppedWeek = existing.week || currentWeek;
-    existing.nextAt = null;
-    setEntry(state, username, existing);
-    await saveState(state);
-    return { action: "week_stop", entry: existing };
-  }
-
-  if (existing.stoppedWeek != null && existing.stoppedWeek === (existing.week || currentWeek)) {
-    return { action: "already_week_stop", entry: existing };
-  }
-
-  // Any other reply: next reminder in 1 hour from the reply.
+  // Any reply (including STOP): next reminder in 1 hour from the reply.
   if (!existing.name1 && !existing.name2) {
     return { action: "no_picks", entry: existing };
   }
@@ -241,7 +203,6 @@ export async function maybeSendStarterReminders(client, sheetRows, now = Date.no
   for (const username of STARTER_REMINDER_USERNAMES) {
     const entry = getEntry(state, username);
     if (!entry || entry.permanentlyStopped) continue;
-    if (entry.stoppedWeek === week) continue;
     if (entry.nextAt == null || entry.nextAt > now) continue;
 
     // Refresh picks from the sheet for the current week when possible.

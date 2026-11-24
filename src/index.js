@@ -295,9 +295,7 @@ client.on(Events.MessageCreate, async (message) => {
       userId: message.author.id,
       content: message.content,
     });
-    if (result.action === "week_stop") {
-      await message.reply("Got it — no more starter reminders for this week.").catch(() => {});
-    } else if (result.action === "permanent_stop") {
+    if (result.action === "permanent_stop") {
       await message.reply("Got it — starter reminders are turned off.").catch(() => {});
     } else if (result.action === "reschedule_1h") {
       console.log(
