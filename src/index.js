@@ -21,6 +21,7 @@ import { slashCommands } from "./commands.js";
 import { maybeNudgeMissingPicks, weekSummaryPayloads } from "./nudge.js";
 import { clearPostedMessage, loadPostedMessage, savePostedMessage } from "./posted-message.js";
 import { canonicalQb, suggestQbs } from "./qbs.js";
+import { loadPersistedRoster, maybeUpdateRoster } from "./roster-update.js";
 import { listSheetRows, setWeekScores, upsertWeekPicks } from "./sheets.js";
 import { buildScoreUpdates, currentSleeperSeason } from "./sleeper-scores.js";
 
@@ -213,6 +214,19 @@ client.once(Events.ClientReady, async (readyClient) => {
     console.error("Failed to register slash commands", error);
   }
   try {
+    const persisted = await loadPersistedRoster();
+    if (persisted?.qbs?.length) {
+      console.log(`Loaded ${persisted.qbs.length} QBs from data/qbs.json (fetched ${persisted.fetchedAt})`);
+    }
+  } catch (error) {
+    console.error("Failed to load persisted QB roster", error);
+  }
+  try {
+    await maybeUpdateRoster();
+  } catch (error) {
+    console.error("Failed weekly QB roster update", error);
+  }
+  try {
     await loadSheetRows();
   } catch (error) {
     console.error("Failed to load picks from the sheet", error);
@@ -240,6 +254,9 @@ client.once(Events.ClientReady, async (readyClient) => {
         console.error("Failed to refresh weekly message for a new date", error);
       });
     }
+    maybeUpdateRoster().catch((error) => {
+      console.error("Failed weekly QB roster update", error);
+    });
     scoreFinishedWeeks().catch((error) => {
       console.error("Failed to fill Sleeper scores", error);
     });

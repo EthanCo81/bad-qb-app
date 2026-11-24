@@ -7,7 +7,9 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "register": "node src/register-commands.js"
+    "register": "node src/register-commands.js",
+    "update-roster": "node src/roster-update.js",
+    "update-roster:write-source": "node src/roster-update.js --write-source"
   },
   "engines": {
     "node": ">=20"
